@@ -1,31 +1,35 @@
 const https = require('https');
 var url = require('url');
-const Search = require ('../../../models/search');
+const Search = require('../../../models/search');
 var config = require('../../../config');
 const endpoint = config.google_map_endpoint;
 const api_key = config.google_api_key;
 
 // placelist 서비스 database 내에 있는 데이터를 먼저 조회
-exports.basicKeyword = (req, res) =>{
-    Search.find({name : req.body.keyword})
-    .then(
-        console.log(res)
-    );
+exports.basicKeyword = (req, res) => {
+    Search.find({ name: req.body.keyword })
+        .then(console.log(res));
 }
 
 exports.keyword = (req, res) => {
-    res.send('keword Search');
     console.log(req.body.keyword);
     const keyword = req.body.keyword;
     const path = `/maps/api/place/${config.user_google_place_api.textsearch}/json`;
     const url = `${path}?query=${encodeURIComponent(keyword)}&language=ko&key=${api_key}`;
-    const option = {host: endpoint, path: url, port:url.port, method: "GET"};
+    const option = { host: endpoint, path: url, port: url.port, method: "GET" };
 
     //https 모듈을 이용하여 google API와 통신하는 함수
-    getGoogleAPI_Data(option, (res)=>{
-        console.log(res);
+    getGoogleAPI_Data(option).then((data) => {
+        res.status(200).json(data);
+        console.log(data);
+    }, (err) => {
+        console.log("err : ", err);
+    }).catch((error) => {
+        res.status(409).json({
+            message: error.message
+        })
     });
-    
+
 }
 
 
@@ -35,25 +39,25 @@ exports.GoogleDetails = (req, res) => {
     const place_id = req.body.place_id;
     const path = `/maps/api/place/${config.user_google_place_api.place_details}/json`;
     const url = `${path}?placeid=${place_id}&language=ko&key=${api_key}`;
-    const option = {host: endpoint, path: url, port:url.port, method: "GET"};
+    const option = { host: endpoint, path: url, port: url.port, method: "GET" };
 
     const create_P_data = (place) => {
-        let p = new Promise((resolve, reject)=>{
-            getGoogleAPI_Data(option, (res)=>{
+        getGoogleAPI_Data(option)
+            .then((res) => {
                 let data_obj = res.result;
-                G_dataToP_data(data_obj, (res)=>{
-                    if(place){
-                        resolve(res);
-                    } else {
-                        Search.create(res);
-                    }
-                });
-            });
-        })
-
-        return p;
+                return data_obj;
+            })
+            .then(G_dataToP_data)
+            .then((res) => {
+                if (place) {
+                    return res;
+                } else {
+                    Search.create(res);
+                }
+            })
+            .then(respond);
     };
-    
+
     const onError = (error) => {
         res.status(409).json({
             message: error.message
@@ -66,95 +70,121 @@ exports.GoogleDetails = (req, res) => {
     };
 
     Search.findOneByPlaceId(place_id)
-    .then(create_P_data)
-    .then(respond)
-    .catch(onError);
+        .then(create_P_data)
+        .catch(onError);
 
 
 }
 
-function G_dataToP_data (data, callback){
-    let obj = {
-        G_place_id : null,
-        name : null,
-        formatted_address : null,
-        address_components : {
-            address : {
-                level_1 : null,
-                level_2 : null,
-                level_3 : null
-            }
-        },
-        location : {
-            lat : null,
-            lng : null
-        },
-        formatted_phone_number : null,
-        photos: null,
-        type : null,
-        website : null
-    };
 
-    let P_data = Object.assign({}, obj);
-
-    for(key in data){
-        if(key === "address_components"){
-            address_components_slice(data[key], (res) =>{
-                P_data[key] = res;
-            });
-        } else if(key === "place_id"){
-            P_data.G_place_id = data[key];
-        } else if (key === "geometry"){
-            P_data.location = data[key].location;
+//구글 place details data를 placelist database에 맞게 변환하는 함수
+const G_dataToP_data = function (data) {
+    return new Promise((resolve, reject) => {
+        if (typeof data !== "object") {
+            reject("Delivery data is not an object");
         } else {
-            for (key2 in P_data){
-                if(key === key2){
-                    P_data[key2] = data[key];
+            let obj = {
+                G_place_id: null,
+                name: null,
+                formatted_address: null,
+                address_components: {
+                    address: {
+                        level_1: null,
+                        level_2: null,
+                        level_3: null
+                    }
+                },
+                location: {
+                    lat: null,
+                    lng: null
+                },
+                formatted_phone_number: null,
+                photos: null,
+                type: null,
+                website: null
+            };
+
+            let P_data = Object.assign({}, obj);
+
+            for (key in data) {
+                if (key === "address_components") {
+                    address_components_slice(data[key], (res) => {
+                        P_data[key] = res;
+                    });
+                } else if (key === "place_id") {
+                    P_data.G_place_id = data[key];
+                } else if (key === "geometry") {
+                    P_data.location = data[key].location;
+                } else {
+                    for (key2 in P_data) {
+                        if (key === key2) {
+                            P_data[key2] = data[key];
+                        }
+                    }
                 }
             }
+            resolve(P_data);
         }
-    }
-    callback(P_data);
+    });
+};
 
-}
-
-
-function address_components_slice(data, callback){
-    let add = {
-		level_1 : null,
-		level_2 : null,
-		level_3 : null
-    };
-    let address = Object.assign({}, add);
-    for(let i = 0 ; i < data.length ; i++){
-        for(let i2 = 0 ; i2 < data[i].types.length ; i2++ ){
-            if (data[i].types[i2] === 'administrative_area_level_1'){
-                address.level_1 = data[i].long_name;
-            } else if (data[i].types[i2] === 'sublocality_level_1'){
-                address.level_2 = data[i].long_name;
-            } else if(data[i].types[i2] === 'sublocality_level_2'){
-                address.level_3 = data[i].long_name;
+//구글 place details data에서 지역객체의 data를 place database에 맞게 변환하는 함수
+const address_components_slice = function (data) {
+    return new Promise((resolve, reject) => {
+        let add = {
+            level_1: null,
+            level_2: null,
+            level_3: null
+        };
+        if (typeof data !== "object") {
+            reject("Delivery data is not an object");
+        } else if (!('types' in data)) {
+            reject("The forwarding data format is incorrect");
+        } else {
+            let address = Object.assign({}, add);
+            for (let i = 0; i < data.length; i++) {
+                for (let i2 = 0; i2 < data[i].types.length; i2++) {
+                    if (data[i].types[i2] === 'administrative_area_level_1') {
+                        address.level_1 = data[i].long_name;
+                    } else if (data[i].types[i2] === 'sublocality_level_1') {
+                        address.level_2 = data[i].long_name;
+                    } else if (data[i].types[i2] === 'sublocality_level_2') {
+                        address.level_3 = data[i].long_name;
+                    }
+                }
             }
+            resolve(address);
         }
-    }
-
-    callback(address);
-}
+    });
+};
 
 // 구글 API를 사용하여 특정 데이터를 받아오는 함수
-function getGoogleAPI_Data (option, callback) {
-    console.log("함수실행");
-    https.request(option, (res) => {
-        res.setEncoding('utf8');
-        var result = '';
-        res.on('data', function (chunk) {
-            result += chunk;
-        }).on('end', function () {
-            var data = JSON.parse(result);
-            callback(data);
-        });
-    }).end();
-}
+const getGoogleAPI_Data = function (option) {
+    return new Promise((resolve, reject) => {
+        console.log("함수실행");
+        if ('host' in option && 'port' in option && 'path' in option && 'method' in option) {
+            https.request(option, (res) => {
+                res.setEncoding('utf8');
+                var result = '';
+                res.on('data', function (chunk) {
+                    result += chunk;
+                }).on('end', function () {
+                    console.log(result);
+                    var data = JSON.parse(result);
+                    try {
+                        if (data.status !== 'OK') throw "google API ERROR : " + data.status;
+                    } catch (err) {
+                        reject(err);
+                    }
+                    resolve(data);
+                });
+            }).end();
+        } else {
+            reject("The configuration of the option is invalid.");
+        }
+    });
+};
+
 
 
 // 다음버전에...
