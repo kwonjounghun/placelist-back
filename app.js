@@ -4,6 +4,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const morgan = require('morgan'); // express 서버에서 일어나는 request를 콘솔에 출력해줍니다.
 const mongoose = require('mongoose');
+var cors = require('cors');
 
 // config.js파일에서 설정값들을 가져온다.
 const config = require('./config');
@@ -12,9 +13,14 @@ const port = process.env.PORT || config.port ;
 // express서버를 생성한다.
 const app = express();
 
+// cors domain을 사용가능하게 해주는 코드
+  
+
 // parse JSON and url-encoded query
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(bodyParser.json());
+
+app.use(cors());
 
 // print the request log on console
 app.use(morgan('dev'));
@@ -25,6 +31,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api', require('./router/api'));
+
 
 // open the server
 app.listen(port, () => {

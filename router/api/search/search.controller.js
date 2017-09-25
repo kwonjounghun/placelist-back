@@ -7,8 +7,11 @@ const api_key = config.google_api_key;
 
 // placelist 서비스 database 내에 있는 데이터를 먼저 조회
 exports.basicKeyword = (req, res) => {
-    Search.find({ name: req.body.keyword })
-        .then(console.log(res));
+    console.log("들어온다!");
+    Search.findPlace(req.body.keyword)
+        .then((data)=>{
+            res.send(data);
+        });
 }
 
 exports.keyword = (req, res) => {
@@ -171,11 +174,9 @@ const getGoogleAPI_Data = function (option) {
                 }).on('end', function () {
                     console.log(result);
                     var data = JSON.parse(result);
-                    try {
-                        if (data.status !== 'OK') throw "google API ERROR : " + data.status;
-                    } catch (err) {
-                        reject(err);
-                    }
+                    if (data.status !== 'OK'){
+                        reject("google API ERROR : " + data.status);
+                    } 
                     resolve(data);
                 });
             }).end();
