@@ -24,6 +24,7 @@ app.use(cors());
 
 // print the request log on console
 app.use(morgan('dev'));
+app.set('jwt-secret', config.secret);
 
 // index page, just for testing
 app.get('/', (req, res) => {

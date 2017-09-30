@@ -10,7 +10,7 @@ exports.basicKeyword = (req, res) => {
     console.log("들어온다!");
     Search.findPlace(req.body.keyword)
         .then((data)=>{
-            res.send(data);
+            res.status(200).json(data);
         });
 }
 
