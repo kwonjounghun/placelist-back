@@ -1,9 +1,12 @@
 const router = require('express').Router();
 const controller = require('./search.controller');
+const google = require('./GoogleSearch.controller');
+const naver = require('./NaverSearch.controller');
 
 router.post('/basicKeyword', controller.basicKeyword);
-router.post('/keyword', controller.keyword);
-router.post('/keyword/GoogleDetails', controller.GoogleDetails);
-router.post('/autoKeyword', controller.autoKeyword); // 다음버전에...
+router.post('/Details', controller.Details);
+router.post('/NaverKeyword', naver.NaverKeyword);
+router.post('/NaverDetail', naver.NaverDetail);
+router.post('/keyword', google.keyword);
 
 module.exports = router;

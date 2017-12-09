@@ -54,7 +54,8 @@ exports.register = (req, res) => {
 };
 
 exports.login = (req, res) => {
-    const {userEmail, username, password} = req.body;
+    console.log(req.body)
+    const {userEmail, password} = req.body;
     const secret = config.secret;
 
     const check = (user) => {
@@ -65,6 +66,7 @@ exports.login = (req, res) => {
                 const p = new Promise((resolve, reject) => {
                     jwt.sign({
                         _id: user._id,
+                        username: user.username,
                         userEmail: user.userEmail,
                         admin: user.admin
                     },
